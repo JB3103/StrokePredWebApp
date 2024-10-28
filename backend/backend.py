@@ -157,7 +157,7 @@ async def predict(input_data: ModelAttributes):
     for model in models:
         predictions.append(model.predict(inputs)[0])
     res = ''.join(get_stroke_advice(input_data, (predictions.count(1)/len(predictions)) * 100))
-    print(generate_advice(input_data, (predictions.count(1)/len(predictions)) * 100))
+    #print(generate_advice(input_data, (predictions.count(1)/len(predictions)) * 100))
     return {"message": res}
 
 if __name__ == "__main__":
