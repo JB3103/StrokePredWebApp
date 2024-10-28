@@ -2,6 +2,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import joblib
+
+import numpy as np
 #from transformers import pipeline, Conversation
 #from transformers import AutoTokenizer, AutoModelForCausalLM
 
@@ -38,16 +40,16 @@ def generate_advice(input_data, model_outputs):
 '''
 def get_stroke_advice(attributes, stroke_risk_binary):
     recommendations = []
-
-    if stroke_risk_binary <=50:
-        recommendations.append("You are currently at low risk for a stroke. Continue maintaining a healthy lifestyle.")
-        recommendations.append("Exercise regularly (150 minutes of moderate activity per week).")
-        recommendations.append("Eat a balanced diet rich in fruits, vegetables, and whole grains.")
-        recommendations.append("Avoid smoking and limit alcohol consumption.")
-        recommendations.append("Monitor your blood pressure and cholesterol levels to keep them in a healthy range.")
+    recommendations.append("Current risk:" + str(stroke_risk_binary) +". ")
+    if stroke_risk_binary ==0:
+        recommendations.append("You are currently at low risk for a stroke. Continue maintaining a healthy lifestyle. ")
+        recommendations.append("Exercise regularly (150 minutes of moderate activity per week). ")
+        recommendations.append("Eat a balanced diet rich in fruits, vegetables, and whole grains. ")
+        recommendations.append("Avoid smoking and limit alcohol consumption. ")
+        recommendations.append("Monitor your blood pressure and cholesterol levels to keep them in a healthy range. ")
     
     else:
-        recommendations.append("There is a risk of stroke. Please take immediate steps to reduce your risk.")
+        recommendations.append("There is a risk of stroke. Please take immediate steps to reduce your risk. ")
         recommendations.append("Consult with a healthcare provider for a detailed stroke prevention plan.")
         recommendations.append("If you have hypertension, work to control your blood pressure through medication or lifestyle changes.")
         recommendations.append("Quit smoking immediately if applicable.")
@@ -83,6 +85,11 @@ models = []
 for i in range(9):
     print("importing model", i)
     models.append(joblib.load(f"model{i}.pkl"))
+
+accuracies = np.array([90.490342, 90.564636, 91.753343, 93.016345, 95.690936, 93.610698, 95.022288, 88.410104, 91.604755])
+
+weights = accuracies / accuracies.sum()
+
 
 class ModelAttributes(BaseModel):
     gender: str
@@ -153,10 +160,16 @@ async def predict(input_data: ModelAttributes):
     temp += getSmokingMatrix(input_data.smoking_status)
     temp += getWorkTypeMatrix(input_data.work_type)
     inputs.append(temp)
+    scaler = joblib.load("scaler.pkl")
+    scaled_input = scaler.transform(inputs)
+    print(scaled_input)
     predictions = []
     for model in models:
-        predictions.append(model.predict(inputs)[0])
-    res = ''.join(get_stroke_advice(input_data, (predictions.count(1)/len(predictions)) * 100))
+        predictions.append(model.predict(scaled_input)[0])
+    weighted_preds = np.tensordot(weights, np.array(predictions), axes=1)
+    final_prediction = (weighted_preds > 0.5).astype(int)
+    res = ''.join(get_stroke_advice(input_data, final_prediction))
+    print(predictions)
     #print(generate_advice(input_data, (predictions.count(1)/len(predictions)) * 100))
     return {"message": res}
 
